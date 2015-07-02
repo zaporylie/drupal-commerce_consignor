@@ -1,0 +1,106 @@
+<?php
+
+/**
+ * @file
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function commerce_consignor_menu() {
+  $items = array();
+
+
+
+  return $items;
+}
+
+/**
+ * Implements hook_libraries_info().
+ */
+function commerce_consignor_libraries_info() {
+  $libraries['consignor'] = array(
+    'name' => 'Consignor',
+    'vendor url' => 'http://blog.edi-soft.no/',
+    'download url' => 'https://github.com/zaporylie/consignor-php/archive/master.zip',
+    'version' => 'master',
+    'files' => array(
+      'php' => array('src/Consignor/Consignor.php', 'src/Consignor/Server.php', 'src/Consignor/Shipment.php'),
+    ),
+  );
+  return $libraries;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function commerce_consignor_permission() {
+  return array(
+    'label' => array(
+      'title' => t('Print shipping label'),
+    ),
+  );
+}
+
+function commerce_consignor_create_shipment($order) {
+  if (!_commerce_consignor_load_library()) {
+    return FALSE;
+  }
+  $data = array(
+    'ProdConceptID' => 1032,
+  );
+  try {
+    $client = new \Consignor\ShipmentAPI;
+    $client->Shipment->setValue($data);
+    $data = $client->createShipment();
+  }
+  catch (Exception $e) {
+    watchdog_exception('commerce_consignor', $e);
+    return FALSE;
+  }
+  return $data['ShpCSID'];
+}
+
+function commerce_consignor_get_shipment($shipment) {
+
+}
+
+function commerce_consignor_delete_shipment($shipment) {
+
+}
+
+function commerce_consignor_get_label($shipment) {
+//  return $label;
+}
+
+function commerce_consignor_retrieve_label($response) {
+//  return $label;
+}
+
+function commerce_consignor_get_tracking($shipment) {
+//  return $tracking;
+}
+
+function _commerce_consignor_get_products() {
+  if (!_commerce_consignor_load_library()) {
+    return FALSE;
+  }
+  try {
+    $client = new \Consignor\ConsignorServer;
+    $data = $client->getProducts();
+  }
+  catch (Exception $e) {
+    watchdog_exception('commerce_consignor', $e);
+    return FALSE;
+  }
+  return $data;
+}
+
+function _commerce_consignor_load_library() {
+  // Load library.
+  if (!($library = libraries_load('consignor')) || empty($library['loaded'])) {
+    watchdog('commerce_consignor', 'Unable to load Consignor library.', array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+  return TRUE;
+}

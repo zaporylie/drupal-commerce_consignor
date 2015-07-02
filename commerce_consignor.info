@@ -1,0 +1,6 @@
+name = Commerce Consignor
+description = Consignor integration with Drupal Commerce.
+core = 7.x
+
+dependencies[] = commerce_shipping
+dependencies[] = libraries
