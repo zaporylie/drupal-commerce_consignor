@@ -42,58 +42,234 @@ function commerce_consignor_permission() {
   );
 }
 
-function commerce_consignor_create_shipment($order) {
+/**
+ * Implements hook_commerce_order_status_info().
+ */
+function commerce_consignor_commerce_order_status_info() {
+  $status['packed'] = array(
+    'name' => 'packed',
+    'title' => t('Packed'),
+    'state' => 'pending',
+    'weight' => 99,
+  );
+  return $status;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function commerce_consignor_theme($existing, $type, $theme, $path) {
+  return array(
+    'commerce_consignor' => array(
+      'variables' => array(
+        'shipment' => NULL,
+        'label' => NULL,
+      ),
+    ),
+  );
+}
+
+function theme_commerce_consignor($variables) {
+  $output = '';
+  $output .= $variables['label'];
+  return $output;
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function commerce_consignor_field_extra_fields() {
+  $extra['commerce_order']['commerce_order'] = array(
+    'display' => array(
+      'commerce_consignor_shipment' => array(
+        'label' => t('Shipment'),
+        'description' => t('Shipment ID and label'),
+        'weight' => 99,
+      ),
+    ),
+  );
+  return $extra;
+}
+
+/**
+ * Implements hook_entity_view().
+ */
+function commerce_consignor_entity_view($entity, $type, $view_mode, $langcode) {
+  if (isset($entity->data['commerce_consignor']['shipment_id']) && $shipment_id = $entity->data['commerce_consignor']['shipment_id']) {
+    $entity->content['commerce_consignor_shipment'] = array(
+      '#type' => 'item',
+      '#title' => t('Consignor'),
+      array(
+        '#theme' => 'commerce_consignor',
+        '#shipment' => commerce_consignor_get_shipment($shipment_id),
+        '#label' => commerce_consignor_get_label($shipment_id),
+      ),
+    );
+  }
+}
+
+function commerce_consignor_create_shipment($order, $data = array()) {
   if (!_commerce_consignor_load_library()) {
     return FALSE;
   }
-  $data = array(
-    'ProdConceptID' => 1032,
-  );
   try {
+    $wrapper = entity_metadata_wrapper('commerce_order', $order);
+    $data['Kind'] = CONSIGNOR_SHIPMENT_KIND_ESKNORMAL;
     $client = new \Consignor\ShipmentAPI;
-    $client->Shipment->setValue($data);
+    $client->Shipment = new \Consignor\Shipment($data);
+    $client->Shipment->addValue('Addresses', new \Consignor\Address(array(
+      'Kind' => CONSIGNOR_ADDRESS_KIND_ESAKRECEIVER,
+      'Name1' => $wrapper->commerce_customer_shipping->commerce_customer_address->name_line->value(),
+      'Street1' => $wrapper->commerce_customer_shipping->commerce_customer_address->thoroughfare->value(),
+      'PostCode' => $wrapper->commerce_customer_shipping->commerce_customer_address->postal_code->value(),
+      'City' => $wrapper->commerce_customer_shipping->commerce_customer_address->locality->value(),
+      'CountryCode' => $wrapper->commerce_customer_shipping->commerce_customer_address->country->value(),
+    )));
+    $client->Shipment->addValue('Lines', new \Consignor\Line(array(
+      'Number' => 1,
+      'PkgWeight' => 5000,
+    )));
     $data = $client->createShipment();
+    return $data->getValue('ShpCSID');
   }
   catch (Exception $e) {
     watchdog_exception('commerce_consignor', $e);
     return FALSE;
   }
-  return $data['ShpCSID'];
 }
 
-function commerce_consignor_get_shipment($shipment) {
+function commerce_consignor_get_shipment($shipment_id, $reset = FALSE) {
+  if (!$reset) {
+    $shipments =& drupal_static(__FUNCTION__);
+    if (isset($shipments[$shipment_id])) {
+      $cache =& $shipments[$shipment_id];
+    }
+    if (empty($cache)) {
+      $cache_data = cache_get(__FUNCTION__ . '_' . $shipment_id);
+      $cache = isset($cache_data->data) ? $cache_data->data : NULL;
+    }
+    if (!empty($cache)) {
+      return $cache;
+    }
+  }
+  if (!_commerce_consignor_load_library()) {
+    return FALSE;
+  }
+  try {
+    $client = new \Consignor\ShipmentAPI($shipment_id);
+    $cache = $client->Shipment;
+  }
+  catch (Exception $e) {
+    watchdog_exception('commerce_consignor', $e);
+    return FALSE;
+  }
+
+  cache_set(__FUNCTION__ . '_' . $shipment_id, $cache);
+  return $cache;
+}
+
+function commerce_consignor_delete_shipment($shipment_id) {
 
 }
 
-function commerce_consignor_delete_shipment($shipment) {
+function commerce_consignor_get_label($shipment_id, $reset = FALSE) {
+  if (!$reset) {
+    $shipments =& drupal_static(__FUNCTION__);
+    if (isset($shipments[$shipment_id])) {
+      $cache =& $shipments[$shipment_id];
+    }
+    if (empty($cache)) {
+      $cache_data = cache_get(__FUNCTION__ . '_' . $shipment_id);
+      $cache = isset($cache_data->data) ? $cache_data->data : NULL;
+    }
+    if (!empty($cache)) {
+      return $cache;
+    }
+  }
+  if (!_commerce_consignor_load_library()) {
+    return FALSE;
+  }
+  try {
+    $client = new \Consignor\ShipmentAPI;
+    $client->Shipment->setValue('ShpCSID', $shipment_id);
+    $cache = $client->getLabel();
+  }
+  catch (Exception $e) {
+    watchdog_exception('commerce_consignor', $e);
+    return FALSE;
+  }
 
+  cache_set(__FUNCTION__ . '_' . $shipment_id, $cache);
+  return $cache;
 }
 
-function commerce_consignor_get_label($shipment) {
-//  return $label;
-}
-
-function commerce_consignor_retrieve_label($response) {
-//  return $label;
-}
-
-function commerce_consignor_get_tracking($shipment) {
+function commerce_consignor_get_tracking_code($shipment) {
 //  return $tracking;
 }
 
+/**
+ * Wraps getProducts API method.
+ *
+ * @return bool|array
+ *   FALSE if list couldn't be retrieved, array if success.
+ */
 function _commerce_consignor_get_products() {
+  $cache =& drupal_static(__FUNCTION__);
+  if (empty($cache)) {
+    $cache_data = cache_get(__FUNCTION__);
+    $cache = $cache_data->data;
+  }
+  if (!empty($cache)) {
+    return $cache;
+  }
   if (!_commerce_consignor_load_library()) {
     return FALSE;
   }
   try {
     $client = new \Consignor\ConsignorServer;
-    $data = $client->getProducts();
+    $cache = $client->getProducts();
   }
   catch (Exception $e) {
     watchdog_exception('commerce_consignor', $e);
     return FALSE;
   }
-  return $data;
+  cache_set(__FUNCTION__, $cache);
+  return $cache;
+}
+
+/**
+ * Returns list of products in options list format.
+ *
+ * @param bool $flatten
+ *   Determines if a list should contain optgroups or not.
+ *
+ * @return array
+ *   One or two level array of products.
+ */
+function commerce_consignor_products_options_list($flatten = FALSE) {
+  $carriers = _commerce_consignor_get_products();
+  $options = array();
+  if (empty($carriers)) {
+    return $options;
+  }
+  foreach ($carriers as $carrier) {
+    foreach ($carrier->Subcarriers as $subcarrier) {
+      foreach ($subcarrier->Products as $product) {
+        if (!isset($product->ProdConceptID) || !isset($carrier->CarrierShortName) || !isset($subcarrier->SubcarrierName) || !isset($product->ProdName)) {
+          continue;
+        }
+        $options[$carrier->CarrierShortName . ' - ' . $subcarrier->SubcarrierName][$product->ProdConceptID] = $product->ProdName;
+      }
+    }
+  }
+  if ($flatten) {
+    return options_array_flatten($options);
+  }
+  return $options;
+}
+
+function commerce_consignor_products_options_list_flatten() {
+  return commerce_consignor_products_options_list(TRUE);
 }
 
 function _commerce_consignor_load_library() {
