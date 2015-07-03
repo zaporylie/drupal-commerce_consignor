@@ -10,7 +10,13 @@
 function commerce_consignor_menu() {
   $items = array();
 
-
+  $items['commerce_consignor/label/%'] = array(
+    'page callback' => 'commerce_consignor_get_label',
+    'page arguments' => array(2),
+    'access arguments' => array('commerce consignor label'),
+    'type' => MENU_CALLBACK,
+    'delivery callback' => 'commerce_consignor_label_delivery_callback',
+  );
 
   return $items;
 }
@@ -36,7 +42,7 @@ function commerce_consignor_libraries_info() {
  */
 function commerce_consignor_permission() {
   return array(
-    'label' => array(
+    'commerce consignor label' => array(
       'title' => t('Print shipping label'),
     ),
   );
@@ -62,6 +68,7 @@ function commerce_consignor_theme($existing, $type, $theme, $path) {
   return array(
     'commerce_consignor' => array(
       'variables' => array(
+        'shipment_id' => NULL,
         'shipment' => NULL,
         'label' => NULL,
       ),
@@ -71,7 +78,8 @@ function commerce_consignor_theme($existing, $type, $theme, $path) {
 
 function theme_commerce_consignor($variables) {
   $output = '';
-  $output .= $variables['label'];
+//  $output .= $variables['label'];
+  $output = theme('image', array('path' => url('commerce_consignor/label/' . $variables['shipment_id'])));
   return $output;
 }
 
@@ -101,8 +109,8 @@ function commerce_consignor_entity_view($entity, $type, $view_mode, $langcode) {
       '#title' => t('Consignor'),
       array(
         '#theme' => 'commerce_consignor',
+        '#shipment_id' => $shipment_id,
         '#shipment' => commerce_consignor_get_shipment($shipment_id),
-        '#label' => commerce_consignor_get_label($shipment_id),
       ),
     );
   }
@@ -181,6 +189,7 @@ function commerce_consignor_get_label($shipment_id, $reset = FALSE) {
     if (empty($cache)) {
       $cache_data = cache_get(__FUNCTION__ . '_' . $shipment_id);
       $cache = isset($cache_data->data) ? $cache_data->data : NULL;
+
     }
     if (!empty($cache)) {
       return $cache;
@@ -201,6 +210,23 @@ function commerce_consignor_get_label($shipment_id, $reset = FALSE) {
 
   cache_set(__FUNCTION__ . '_' . $shipment_id, $cache);
   return $cache;
+}
+
+function commerce_consignor_label_delivery_callback($label) {
+  // Prepare headers.
+  $headers = array(
+    'Content-type' => 'Content-Type: image/png;',
+    'Cache-Control' => 'max-age=0',
+    'Accept-Ranges' => 'none',
+  );
+
+  // Set headers.
+  foreach ($headers as $name => $value) {
+    drupal_add_http_header($name, $value);
+  }
+  drupal_send_headers();
+
+  print base64_decode($label);
 }
 
 function commerce_consignor_get_tracking_code($shipment) {
