@@ -39,9 +39,18 @@ function commerce_consignor_rules_action_info() {
   return $actions;
 }
 
+/**
+ * Create new shipment with Consignor API.
+ *
+ * @param $order
+ * @param $consignor_product
+ * @param null $customer
+ *
+ * @return bool
+ */
 function commerce_consignor_rules_create_shipment($order, $consignor_product, $customer = NULL) {
 
-  if ($order->data['commerce_consignor']['shipment_id']) {
+  if (isset($order->data['commerce_consignor']['shipment_id']) && $order->data['commerce_consignor']['shipment_id']) {
     return TRUE;
   }
 
@@ -49,16 +58,16 @@ function commerce_consignor_rules_create_shipment($order, $consignor_product, $c
     'ProdConceptID' => intval($consignor_product),
   );
   if (!empty($customer)) {
-//    // @todo Add sender
-//    $data['Addresses'][] = array(
-//
-//    );
+    // @todo Add sender
   }
   $shipment_id = commerce_consignor_create_shipment($order, $data);
   if (empty($shipment_id)) {
     watchdog('commerce_consignor', 'Unable to create shipment label in Consignor.', array(), WATCHDOG_WARNING);
     drupal_set_message(t('Unable to create shipment label in Consignor.'), 'warning');
     return FALSE;
+  }
+  if (!isset($order->data['commerce_consignor'])) {
+    $order->data['commerce_consignor'] = array();
   }
   $order->data['commerce_consignor']['shipment_id'] = $shipment_id;
 }

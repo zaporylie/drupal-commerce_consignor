@@ -2,5 +2,7 @@ name = Commerce Consignor
 description = Consignor integration with Drupal Commerce.
 core = 7.x
 
+configure = admin/commerce/config/shipping/commerce_consignor
+
 dependencies[] = commerce_shipping
 dependencies[] = libraries

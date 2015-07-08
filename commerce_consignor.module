@@ -18,6 +18,15 @@ function commerce_consignor_menu() {
     'delivery callback' => 'commerce_consignor_label_delivery_callback',
   );
 
+  $items['admin/commerce/config/shipping/commerce_consignor'] = array(
+    'title' => 'Consignor',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('commerce_consignor_settings_form'),
+    'access arguments' => array('administer shipping'),
+    'file' => 'commerce_consignor.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
   return $items;
 }
 
@@ -88,6 +97,18 @@ function commerce_consignor_theme($existing, $type, $theme, $path) {
   );
 }
 
+/**
+ * @param $variables
+ * @return mixed
+ */
+function theme_commerce_consignor($variables) {
+  return $variables['tracking_code'];
+}
+
+/**
+ * @param $variables
+ * @return string
+ */
 function theme_commerce_consignor_tracking_code($variables) {
   if (isset($variables['tracking_url'])) {
     return l($variables['tracking_code'], $variables['tracking_url'], array());
@@ -95,15 +116,15 @@ function theme_commerce_consignor_tracking_code($variables) {
   return $variables['tracking_code'];
 }
 
-function theme_commerce_consignor($variables) {
-  $output = '';
-//  $output .= $variables['label'];
-//  $output = theme('image', array('path' => url('commerce_consignor/label/' . $variables['shipment_id'])));
-  $output .= $variables['tracking_code'];
-  $output .= $variables['label'];
-  return $output;
-}
-
+/**
+ * Displays label for shipment ID.
+ *
+ * @param $variables
+ *   Array of one element - shipment_id
+ *
+ * @return string
+ *   Linked image.
+ */
 function theme_commerce_consignor_label($variables) {
   $url = url('commerce_consignor/label/' . $variables['shipment_id']);
   return l(theme('image', array('path' => $url, 'alt' => t('Shipment label'), 'width' => 200)), $url, array('html' => TRUE, 'attributes' => array('target' => '_blank')));
@@ -144,27 +165,48 @@ function commerce_consignor_entity_view($entity, $type, $view_mode, $langcode) {
   }
 }
 
+/**
+ * Creates new shipment using Consignor API.
+ *
+ * @param $order
+ *   Commerce Order object.
+ * @param array $data
+ *   Additional data.
+ *
+ * @return int|bool
+ *   If correct - returns shipment id, if false - FALSE.
+ */
 function commerce_consignor_create_shipment($order, $data = array()) {
   if (!_commerce_consignor_load_library()) {
     return FALSE;
   }
   try {
     $wrapper = entity_metadata_wrapper('commerce_order', $order);
+    $request = array(
+      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
+      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
+    );
     $data['Kind'] = CONSIGNOR_SHIPMENT_KIND_ESKNORMAL;
-    $client = new \Consignor\ShipmentAPI;
+    $data['ActorCSID'] = variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR);
+    $data['OrderNo'] = $wrapper->getIdentifier();
+    $client = new \Consignor\ShipmentAPI(NULL, $request);
     $client->Shipment = new \Consignor\Shipment($data);
     $client->Shipment->addValue('Addresses', new \Consignor\Address(array(
       'Kind' => CONSIGNOR_ADDRESS_KIND_ESAKRECEIVER,
       'Name1' => $wrapper->commerce_customer_shipping->commerce_customer_address->name_line->value(),
       'Street1' => $wrapper->commerce_customer_shipping->commerce_customer_address->thoroughfare->value(),
+      'Street2' => $wrapper->commerce_customer_shipping->commerce_customer_address->premise->value(),
       'PostCode' => $wrapper->commerce_customer_shipping->commerce_customer_address->postal_code->value(),
       'City' => $wrapper->commerce_customer_shipping->commerce_customer_address->locality->value(),
       'CountryCode' => $wrapper->commerce_customer_shipping->commerce_customer_address->country->value(),
     )));
     $client->Shipment->addValue('Lines', new \Consignor\Line(array(
       'Number' => 1,
-      'PkgWeight' => 5000,
     )));
+
+    // Make it alterable.
+    drupal_alter('commerce_consignor_create_shipment', $client, $order);
+
     $data = $client->createShipment();
     return $data->getValue('ShpCSID');
   }
@@ -174,6 +216,17 @@ function commerce_consignor_create_shipment($order, $data = array()) {
   }
 }
 
+/**
+ * Gets shipment details.
+ *
+ * @param $shipment_id
+ *   Shipment ID.
+ * @param bool $reset
+ *   True if cache should be cleaned.
+ *
+ * @return bool|\Consignor\Shipment
+ *   Returns /Consignor/Shipment object if shipment exists, FALSE if not.
+ */
 function commerce_consignor_get_shipment($shipment_id, $reset = FALSE) {
   if (!_commerce_consignor_load_library()) {
     return FALSE;
@@ -192,7 +245,11 @@ function commerce_consignor_get_shipment($shipment_id, $reset = FALSE) {
     }
   }
   try {
-    $client = new \Consignor\ShipmentAPI($shipment_id);
+    $request = array(
+      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
+      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
+    );
+    $client = new \Consignor\ShipmentAPI($shipment_id, $request);
     $cache = $client->Shipment;
   }
   catch (Exception $e) {
@@ -204,10 +261,11 @@ function commerce_consignor_get_shipment($shipment_id, $reset = FALSE) {
   return $cache;
 }
 
-function commerce_consignor_delete_shipment($shipment_id) {
-
-}
-
+/**
+ * @param $shipment_id
+ * @param bool $reset
+ * @return bool|null
+ */
 function commerce_consignor_get_label($shipment_id, $reset = FALSE) {
   if (!_commerce_consignor_load_library()) {
     return FALSE;
@@ -226,7 +284,11 @@ function commerce_consignor_get_label($shipment_id, $reset = FALSE) {
     }
   }
   try {
-    $client = new \Consignor\ShipmentAPI;
+    $request = array(
+      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
+      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
+    );
+    $client = new \Consignor\ShipmentAPI(NULL, $request);
     $client->Shipment->setValue('ShpCSID', $shipment_id);
     $cache = $client->getLabel();
   }
@@ -239,6 +301,14 @@ function commerce_consignor_get_label($shipment_id, $reset = FALSE) {
   return $cache;
 }
 
+/**
+ * Prints shipment label.
+ *
+ * Adds headers and delivers menu item as a image.
+ *
+ * @param $label
+ *  Base64 encoded image.
+ */
 function commerce_consignor_label_delivery_callback($label) {
   // Prepare headers.
   $headers = array(
@@ -257,9 +327,15 @@ function commerce_consignor_label_delivery_callback($label) {
 }
 
 /**
+ * Get tracking code from shipment object.
+ *
  * @param $shipment_id
+ *   Shipment ID.
  * @param bool $reset
- * @return bool
+ *   TRUE if cache should be cleared.
+ *
+ * @return bool|string
+ *   Returns tracking code if exist, FALSE if not.
  */
 function commerce_consignor_get_tracking_code($shipment_id, $reset = FALSE) {
   $shipment = commerce_consignor_get_shipment($shipment_id, $reset);
@@ -278,9 +354,15 @@ function commerce_consignor_get_tracking_code($shipment_id, $reset = FALSE) {
 }
 
 /**
+ * Get tracking URL.
+ *
  * @param $shipment_id
+ *   Shipment ID.
  * @param bool $reset
- * @return bool|null
+ *   TRUE if cache should be cleared.
+ *
+ * @return bool|string
+ *   Tracking URL if shipment exists, FALSE if not.
  */
 function commerce_consignor_get_tracking_url($shipment_id, $reset = FALSE) {
   if (!_commerce_consignor_load_library()) {
@@ -300,7 +382,11 @@ function commerce_consignor_get_tracking_url($shipment_id, $reset = FALSE) {
     }
   }
   try {
-    $client = new \Consignor\ShipmentAPI();
+    $request = array(
+      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
+      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
+    );
+    $client = new \Consignor\ShipmentAPI(NULL, $request);
     $client->Shipment->setValue('ShpCSID', $shipment_id);
     $cache = $client->getTrackingURL();
   }
@@ -374,10 +460,24 @@ function commerce_consignor_products_options_list($flatten = FALSE) {
   return $options;
 }
 
+/**
+ * Flatten option list.
+ *
+ * Rules can't tak two level option list and it can't take option list callback
+ * with parameter as well. This is the way how we can bypass limitations.
+ *
+ * @return array
+ *   Flatten option list.
+ */
 function commerce_consignor_products_options_list_flatten() {
   return commerce_consignor_products_options_list(TRUE);
 }
 
+/**
+ * Loads Consignor API library.
+ *
+ * @return bool
+ */
 function _commerce_consignor_load_library() {
   // Load library.
   if (!($library = libraries_load('consignor')) || empty($library['loaded'])) {
