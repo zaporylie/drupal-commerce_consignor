@@ -42,11 +42,15 @@ function commerce_consignor_rules_action_info() {
 /**
  * Create new shipment with Consignor API.
  *
- * @param $order
- * @param $consignor_product
- * @param null $customer
+ * @param object $order
+ *   Order object - from rules.
+ * @param int $consignor_product
+ *   Consignor product ID - from rules.
+ * @param int|null $customer
+ *   Customer object - from rules.
  *
  * @return bool
+ *   FALSE if order cannot be created.
  */
 function commerce_consignor_rules_create_shipment($order, $consignor_product, $customer = NULL) {
 
@@ -58,7 +62,7 @@ function commerce_consignor_rules_create_shipment($order, $consignor_product, $c
     'ProdConceptID' => intval($consignor_product),
   );
   if (!empty($customer)) {
-    // @todo Add sender
+    // @todo Add sender from customer profile.
   }
   $shipment_id = commerce_consignor_create_shipment($order, $data);
   if (empty($shipment_id)) {

@@ -1,0 +1,14 @@
+<?php
+
+/**
+ * @file
+ * Remove variables on module uninstall.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function commerce_consignor_uninstall() {
+  variable_del('commerce_consignor_actor');
+  variable_del('commerce_consignor_key');
+}
