@@ -32,6 +32,9 @@ function commerce_consignor_settings_form($form) {
   return system_settings_form($form);
 }
 
+/**
+ * Clear product cache.
+ */
 function commerce_consignor_settings_form_clear_cache($form, $form_state) {
   cache_clear_all('_commerce_consignor_get_products', 'cache');
 }
