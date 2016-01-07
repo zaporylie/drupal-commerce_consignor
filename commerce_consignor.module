@@ -38,8 +38,8 @@ function commerce_consignor_libraries_info() {
   $libraries['consignor'] = array(
     'name' => 'Consignor',
     'vendor url' => 'http://blog.edi-soft.no/',
-    'download url' => 'https://github.com/zaporylie/consignor-php/archive/master.zip',
-    'version' => 'master',
+    'download url' => 'https://github.com/zaporylie/consignor-php/archive/0.0.1.zip',
+    'version' => '0.0.1',
     'files' => array(
       'php' => array(
         'src/Consignor/Load.php',
