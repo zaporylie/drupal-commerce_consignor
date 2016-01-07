@@ -28,5 +28,10 @@ function commerce_consignor_settings_form($form) {
     '#default_value' => variable_get('commerce_consignor_key', 'sample'),
   );
 
+  $form['#validate'][] = 'commerce_consignor_settings_form_clear_cache';
   return system_settings_form($form);
+}
+
+function commerce_consignor_settings_form_clear_cache($form, $form_state) {
+  cache_clear_all('_commerce_consignor_get_products', 'cache');
 }

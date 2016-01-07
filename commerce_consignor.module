@@ -418,7 +418,7 @@ function _commerce_consignor_get_products() {
   $cache =& drupal_static(__FUNCTION__);
   if (empty($cache)) {
     $cache_data = cache_get(__FUNCTION__);
-    $cache = $cache_data->data;
+    $cache = isset($cache_data->data) ? $cache_data->data : NULL;
   }
   if (!empty($cache)) {
     return $cache;
