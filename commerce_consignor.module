@@ -42,9 +42,7 @@ function commerce_consignor_libraries_info() {
     'version' => 'master',
     'files' => array(
       'php' => array(
-        'src/Consignor/Consignor.php',
-        'src/Consignor/Server.php',
-        'src/Consignor/Shipment.php',
+        'src/Consignor/Load.php',
       ),
     ),
   );
@@ -201,17 +199,15 @@ function commerce_consignor_create_shipment($order, $data = array()) {
   }
   try {
     $wrapper = entity_metadata_wrapper('commerce_order', $order);
-    $request = array(
-      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
-      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
-    );
-    $data['Kind'] = CONSIGNOR_SHIPMENT_KIND_ESKNORMAL;
-    $data['ActorCSID'] = variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR);
+    $client = new \Consignor\ShipmentAPI(variable_get('commerce_consignor_server', 'http://consignorsupport.no/ship/ShipmentServerModule.dll'), variable_get('commerce_consignor_actor', 63), variable_get('commerce_consignor_key', 'sample'));
+
+    $data['Kind'] = \Consignor\ShipmentAPI::CONSIGNOR_SHIPMENT_KIND_ESKNORMAL;
+    $data['ActorCSID'] = variable_get('commerce_consignor_actor', 63);
     $data['OrderNo'] = $wrapper->getIdentifier();
-    $client = new \Consignor\ShipmentAPI(NULL, $request);
-    $client->Shipment = new \Consignor\Shipment($data);
-    $client->Shipment->addValue('Addresses', new \Consignor\Address(array(
-      'Kind' => CONSIGNOR_ADDRESS_KIND_ESAKRECEIVER,
+    $client->Shipment = new \Consignor\Structure\Shipment($data);
+
+    $client->Shipment->addValue('Addresses', new \Consignor\Structure\Address(array(
+      'Kind' => \Consignor\ShipmentAPI::CONSIGNOR_ADDRESS_KIND_ESAKRECEIVER,
       'Name1' => $wrapper->commerce_customer_shipping->commerce_customer_address->name_line->value(),
       'Street1' => $wrapper->commerce_customer_shipping->commerce_customer_address->thoroughfare->value(),
       'Street2' => $wrapper->commerce_customer_shipping->commerce_customer_address->premise->value(),
@@ -219,7 +215,7 @@ function commerce_consignor_create_shipment($order, $data = array()) {
       'City' => $wrapper->commerce_customer_shipping->commerce_customer_address->locality->value(),
       'CountryCode' => $wrapper->commerce_customer_shipping->commerce_customer_address->country->value(),
     )));
-    $client->Shipment->addValue('Lines', new \Consignor\Line(array(
+    $client->Shipment->addValue('Lines', new \Consignor\Structure\Line(array(
       'Number' => 1,
     )));
 
@@ -243,7 +239,7 @@ function commerce_consignor_create_shipment($order, $data = array()) {
  * @param bool $reset
  *   True if cache should be cleaned.
  *
- * @return bool|\Consignor\Shipment
+ * @return bool|\Consignor\Structure\Shipment
  *   Returns /Consignor/Shipment object if shipment exists, FALSE if not.
  */
 function commerce_consignor_get_shipment($shipment_id, $reset = FALSE) {
@@ -264,11 +260,7 @@ function commerce_consignor_get_shipment($shipment_id, $reset = FALSE) {
     }
   }
   try {
-    $request = array(
-      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
-      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
-    );
-    $client = new \Consignor\ShipmentAPI($shipment_id, $request);
+    $client = new \Consignor\ShipmentAPI(variable_get('commerce_consignor_server', 'http://consignorsupport.no/ship/ShipmentServerModule.dll'), variable_get('commerce_consignor_actor', 63), variable_get('commerce_consignor_key', 'sample'), $shipment_id);
     $cache = $client->Shipment;
   }
   catch (Exception $e) {
@@ -309,11 +301,7 @@ function commerce_consignor_get_label($shipment_id, $reset = FALSE) {
     }
   }
   try {
-    $request = array(
-      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
-      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
-    );
-    $client = new \Consignor\ShipmentAPI(NULL, $request);
+    $client = new \Consignor\ShipmentAPI(variable_get('commerce_consignor_server', 'http://consignorsupport.no/ship/ShipmentServerModule.dll'), variable_get('commerce_consignor_actor', 63), variable_get('commerce_consignor_key', 'sample'));
     $client->Shipment->setValue('ShpCSID', $shipment_id);
     $cache = $client->getLabel();
   }
@@ -407,11 +395,7 @@ function commerce_consignor_get_tracking_url($shipment_id, $reset = FALSE) {
     }
   }
   try {
-    $request = array(
-      'actor' => variable_get('commerce_consignor_actor', CONSIGNOR_TEST_ACTOR),
-      'key' => variable_get('commerce_consignor_key', CONSIGNOR_TEST_KEY),
-    );
-    $client = new \Consignor\ShipmentAPI(NULL, $request);
+    $client = new \Consignor\ShipmentAPI(variable_get('commerce_consignor_server', 'http://consignorsupport.no/ship/ShipmentServerModule.dll'), variable_get('commerce_consignor_actor', 63), variable_get('commerce_consignor_key', 'sample'));
     $client->Shipment->setValue('ShpCSID', $shipment_id);
     $cache = $client->getTrackingURL();
   }
@@ -443,7 +427,7 @@ function _commerce_consignor_get_products() {
     return FALSE;
   }
   try {
-    $client = new \Consignor\ConsignorServer();
+    $client = new \Consignor\ConsignorServer(variable_get('commerce_consignor_server', 'http://consignorsupport.no/ship/ShipmentServerModule.dll'), variable_get('commerce_consignor_actor', 63), variable_get('commerce_consignor_key', 'sample'));
     $cache = $client->getProducts();
   }
   catch (Exception $e) {
