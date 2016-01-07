@@ -260,7 +260,8 @@ function commerce_consignor_get_shipment($shipment_id, $reset = FALSE) {
     }
   }
   try {
-    $client = new \Consignor\ShipmentAPI(variable_get('commerce_consignor_server', 'http://consignorsupport.no/ship/ShipmentServerModule.dll'), variable_get('commerce_consignor_actor', 63), variable_get('commerce_consignor_key', 'sample'), $shipment_id);
+    $client = new \Consignor\ShipmentAPI(variable_get('commerce_consignor_server', 'http://consignorsupport.no/ship/ShipmentServerModule.dll'), variable_get('commerce_consignor_actor', 63), variable_get('commerce_consignor_key', 'sample'));
+    $client->loadShipment($shipment_id);
     $cache = $client->Shipment;
   }
   catch (Exception $e) {
