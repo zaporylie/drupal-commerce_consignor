@@ -352,17 +352,20 @@ function commerce_consignor_label_delivery_callback($label) {
  *   Returns tracking code if exist, FALSE if not.
  */
 function commerce_consignor_get_tracking_code($shipment_id, $reset = FALSE) {
-  $shipment = commerce_consignor_get_shipment($shipment_id, $reset);
   if (!_commerce_consignor_load_library()) {
     return FALSE;
   }
   try {
+    if (!($shipment = commerce_consignor_get_shipment($shipment_id, $reset))) {
+      throw new Exception(t('Cannot find shipment for given Shipment ID.'));
+    }
     $line = $shipment->getValue('Lines', 0);
     $package = $line->getValue('Pkgs', 0);
     return $package->getValue('PkgNo');
   }
   catch (Exception $e) {
     watchdog_exception('commerce_consignor', $e);
+    drupal_set_message($e->getMessage(), 'error');
     return FALSE;
   }
 }
